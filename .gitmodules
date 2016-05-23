@@ -1,0 +1,3 @@
+[submodule "linepy"]
+	path = linepy
+	url = https://github.com/txyz/linepy.git
