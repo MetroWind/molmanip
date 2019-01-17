@@ -87,7 +87,7 @@ def randPlaceAround(small, count, center, box_size, rand_rot=False):
         Radius = center.radius()
     Box = small.boundingBox() * 0.5
     Logger.debug("Bounding box of small molecule: " + str(Box))
-    SmallZeroed = copy.copy(small)
+    SmallZeroed = copy.deepcopy(small)
     SmallZeroed.translate(-(small.GeoCenter))
     # SmallZeroed is now center at (0,0,0).
     if center is not None:
