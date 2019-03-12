@@ -353,9 +353,10 @@ class Molecule(object):
         return self
 
     def rotate(self, rot_mat):
-        """Rotation the molecule with rotation matrix `rot_mat`."""
+        """Rotate the molecule with rotation matrix `rot_mat`."""
         for Atom in self:
             Atom.rotate(rot_mat)
+        self._GeoCenter = None
         return self
 
     def __getitem__(self, i):
