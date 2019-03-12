@@ -1,5 +1,8 @@
 # MolManip
 
+![Azure DevOps tests
+(compact)](https://img.shields.io/azure-devops/tests/metrowind/molmanip/3.svg?compact_message&label=Tests) ![GitHub](https://img.shields.io/github/license/MetroWind/molmanip.svg?label=License)
+
 PDB processing library in Python.
 
 ## Why

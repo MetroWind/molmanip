@@ -43,7 +43,7 @@ def getLogger(name="Main", level=logging.DEBUG):
 
 Logger = getLogger("Molecule", logging.INFO)
 
-class Boundary(object):
+class PeriodicBox(object):
     """Periodic boundary condition defined by wall positions in each direction."""
     def __init__(self):
         self.Walls = []
@@ -76,7 +76,7 @@ class Boundary(object):
         self.Walls = [tuple(sorted((v1[i], v2[i]))) for i in range(v1.Size)]
         return self
 
-    def Offset1D(self, i, x1, x2):
+    def offset1D(self, i, x1, x2):
         BoxSize = self.spanOfDim(i)
         Offset = math.fabs(x1 - x2)
         Offset -= Offset // BoxSize * BoxSize
@@ -88,7 +88,7 @@ class Boundary(object):
     def inBox(self, v1, v2, box_size):
         IsIn = True
         for i in range(self.Dims):
-            if self.Offset1D(i, v1[i], v2[i]) > box_size[i]:
+            if self.offset1D(i, v1[i], v2[i]) > box_size[i]:
                 IsIn = False
         return IsIn
 
@@ -96,7 +96,7 @@ class Boundary(object):
         if v1.Size != v2.Size:
             raise TypeError("Vector size do not match.")
 
-        return math.sqrt(sum(self.Offset1D(i, v1[i], v2[i]) ** 2
+        return math.sqrt(sum(self.offset1D(i, v1[i], v2[i]) ** 2
                              for i in range(v1.Size)))
 
 class Atom(object):
@@ -237,7 +237,7 @@ class Molecule(object):
                 x, y, z = tuple(map(float, Parts))
                 if x != y or y != z:
                     Logger.warn("Box is not cube.")
-                FrameData["box"] = Boundary()
+                FrameData["box"] = PeriodicBox()
                 FrameData["box"].setWalls(matrix.Vector3D(-x*0.5, -y*0.5, -z*0.5),
                                           matrix.Vector3D(x*0.5, y*0.5, z*0.5))
             elif len(Parts) == 4:

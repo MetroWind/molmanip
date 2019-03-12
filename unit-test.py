@@ -2,8 +2,56 @@
 
 import os
 import unittest
+import math
+
 from linepy.matrix import *
 from molecule import *
+
+class TestPBC(unittest.TestCase):
+    def setUp(self):
+        self.Bound2 = PeriodicBox()
+        self.Bound2.setWalls(Vector(0,0), Vector(1,2))
+        self.Bound3 = PeriodicBox()
+        self.Bound3.setWalls(Vector3D(0,0,0), Vector3D(1,2,3))
+        self.Bound10 = PeriodicBox()
+        self.Bound10.setWalls(Vector(*([0,]*10)), Vector(*(range(1, 11))))
+        self.Bound3p = PeriodicBox()
+        self.Bound3p.setWalls(Vector3D(-0.4, -0.5, -0.5), Vector3D(0.6,0.5,0.5))
+
+    def test_add_walls(self):
+        self.assertEqual(self.Bound2.Dims, 2)
+        self.assertEqual(self.Bound2.spanOfDim(0), 1)
+        self.assertEqual(self.Bound2.spanOfDim(1), 2)
+
+        self.assertEqual(self.Bound3.Dims, 3)
+        self.assertEqual(self.Bound3.spanOfDim(0), 1)
+        self.assertEqual(self.Bound3.spanOfDim(1), 2)
+        self.assertEqual(self.Bound3.spanOfDim(2), 3)
+        self.assertEqual(self.Bound3p.spanOfDim(0), 1)
+        self.assertEqual(self.Bound3p.spanOfDim(1), 1)
+        self.assertEqual(self.Bound3p.spanOfDim(2), 1)
+
+        self.assertEqual(self.Bound10.Dims, 10)
+        self.assertEqual(self.Bound10.spanOfDim(0), 1)
+        self.assertEqual(self.Bound10.spanOfDim(9), 10)
+
+    def test_offset1D(self):
+        self.assertEqual(self.Bound3.offset1D(0, 0, 0), 0)
+        self.assertEqual(self.Bound3.offset1D(0, 0, 1), 0)
+        self.assertEqual(self.Bound3.offset1D(0, 0, 0.5), 0.5)
+        self.assertAlmostEqual(self.Bound3.offset1D(0, 0, 0.50001), 0.49999)
+        self.assertAlmostEqual(self.Bound3.offset1D(0, 0, 0.9), 0.1)
+        self.assertEqual(self.Bound3p.offset1D(0, -0.4, 0.6), 0)
+        self.assertAlmostEqual(self.Bound3p.offset1D(0, -0.41, 0.6), 0.01)
+        self.assertEqual(self.Bound3p.offset1D(0, 0.1, 0.6), 0.5)
+        self.assertAlmostEqual(self.Bound3p.offset1D(0, 0.10001, 0.6), 0.49999)
+
+    def test_dist(self):
+        self.assertEqual(self.Bound2.dist(Vector(0, 0), Vector(0, 1)), 1)
+        self.assertEqual(self.Bound2.dist(Vector(0, 0), Vector(0, 2)), 0)
+        self.assertEqual(self.Bound2.dist(Vector(0, 0), Vector(0.5, 2)), 0.5)
+        self.assertEqual(self.Bound2.dist(Vector(0, 0), Vector(0.5, 2.5)),
+                         0.5 * math.sqrt(2))
 
 class TestMolecule(unittest.TestCase):
     def test_atom_import(self):
@@ -16,8 +64,8 @@ class TestMolecule(unittest.TestCase):
         self.assertEqual(a1.x, float("-1.362"))
         self.assertEqual(a2.x, float("-30.828"))
         self.assertEqual(a2.z, float("4.852"))
-        self.assertEqual(a1.ID, " O4")
-        self.assertEqual(a2.ID, " H17")
+        self.assertEqual(a1.ID, "O4")
+        self.assertEqual(a2.ID, "H17")
         self.assertEqual(a1.Residue, "HPO")
         self.assertEqual(a1.ResidueNum, 18)
         self.assertEqual(a2.Residue, "HEX")

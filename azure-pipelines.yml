@@ -1,0 +1,31 @@
+name: MolManip Unit Test
+
+trigger:
+- master
+
+pool:
+  vmImage: ubuntu-16.04
+
+steps:
+
+- script: git submodule update --init --recursive --remote
+  displayName: Get submodules
+
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: 3.x
+    addToPath: true
+
+- script: |
+    pip install pytest
+    pytest --junitxml result.xml unit-test.py
+  displayName: Unit tests
+  env:
+    IS_AZURE_PIPELINE: "1"
+    PYTHONPATH: $(Build.SourcesDirectory)
+
+- task: PublishTestResults@2
+  condition: succeededOrFailed()
+  inputs:
+    testResultsFiles: result.xml
+    testRunTitle: Publish unit test results
