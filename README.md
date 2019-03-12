@@ -13,7 +13,7 @@ The easiest way to install this library is to not do that, but instead
 clone the git repository to somewhere in your project, by running
 
     git clone --recursive https://github.com/MetroWind/molmanip.git
-    
+
 You can also clone this as a git submodule.
 
 ## Usage
@@ -29,8 +29,13 @@ For mole detail, generate documentation by running
 
 given that [pdoc](http://pdoc.burntsushi.net/pdoc) is installed.
 
-An example program using this library is given in `random_mol.py`.  It
-takes two molecules, and randomly place copied of the 1st molecule
-around the second in a cubic box.  Random rotation can be applied to
-the copies of 1st molecule.  For detailed usage, run `random_mol.py
--h`.
+A simple example is provided in `resnum-add1.py`. It simply reads PDB
+file from stdin, adds the residue number by 1 for each atom, and
+writes the result to stdout as a PDB file.
+
+Another example program using this library is given in
+`random_mol.py`. This is a more involved example concerning all
+aspects of the library, including linear algebra. It takes two
+molecules, and randomly place copied of the 1st molecule around the
+second in a cubic box. Random rotation can be applied to the copies of
+1st molecule. For detailed usage, run `random_mol.py -h`.
