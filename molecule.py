@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # MolManip, PDB processing library in Python.
-# Copyright (C) 2016 Mingyang Sun (aka. MetroWind)
+# Copyright (C) 2016 MetroWind
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@ files.  Use the `Atom` and `Molecule` class.
 
 from __future__ import print_function
 import logging
+import math
 
 import linepy.matrix as matrix
 
@@ -42,6 +43,62 @@ def getLogger(name="Main", level=logging.DEBUG):
 
 Logger = getLogger("Molecule", logging.INFO)
 
+class Boundary(object):
+    """Periodic boundary condition defined by wall positions in each direction."""
+    def __init__(self):
+        self.Walls = []
+
+    @property
+    def Dims(self):
+        """Number of dimentions"""
+        return len(self.Walls)
+
+    def spanOfDim(self, i):
+        """The span of `i`th dimention.
+
+        :type i: int
+        :rtype: float
+        """
+        return self.Walls[i][1] - self.Walls[i][0]
+
+    def addWall(self, x1, x2):
+        """Add a wall as the boundary of the next dimension. Probably not useful; better
+        just use setWalls().
+        """
+        self.Walls.append((x1, x2))
+        return self
+
+    def setWalls(self, v1, v2):
+        """Set the boundary of all dimensions by vector `v1` and `v2`. These two vectors
+        are supposed by at the two ends of the diagonal of the n-dimensional
+        box.
+        """
+        self.Walls = [tuple(sorted((v1[i], v2[i]))) for i in range(v1.Size)]
+        return self
+
+    def Offset1D(self, i, x1, x2):
+        BoxSize = self.spanOfDim(i)
+        Offset = math.fabs(x1 - x2)
+        Offset -= Offset // BoxSize * BoxSize
+        if Offset > BoxSize * 0.5:
+            return math.fabs(BoxSize - Offset)
+        else:
+            return Offset
+
+    def inBox(self, v1, v2, box_size):
+        IsIn = True
+        for i in range(self.Dims):
+            if self.Offset1D(i, v1[i], v2[i]) > box_size[i]:
+                IsIn = False
+        return IsIn
+
+    def dist(self, v1, v2):
+        if v1.Size != v2.Size:
+            raise TypeError("Vector size do not match.")
+
+        return math.sqrt(sum(self.Offset1D(i, v1[i], v2[i]) ** 2
+                             for i in range(v1.Size)))
+
 class Atom(object):
     """Information of an atom in a PDB file."""
     Warned = {"Residue": False,}
@@ -49,15 +106,16 @@ class Atom(object):
         self.Loc = matrix.Vector3D()
         """Location of the atom."""
         self.ID = ""
-        """ID of the atom, 3rd column in PDB files.  If name of the element is
-        only 1 character, this should have 1 leading space.
-        """
+        """ID of the atom, roughly the 3rd column in PDB files."""
         self.Residue = ""
         """Name of residue."""
         self.ResidueNum = 0
         """Residue number."""
         self.ResidueID = ""
         """This field is not in the PDB specification, but charmm uses it."""
+        self._IDRaw = ""
+        """ID of the atom, 3rd column in PDB files. This may have 1 leading space.
+        """
 
     def __eq__(self, rhs):
         return self.Loc == rhs.Loc and self.ID == rhs.ID and \
@@ -68,6 +126,10 @@ class Atom(object):
     def __str__(self):
         return "{} @({})".format(self.ID, self.Loc)
 
+    def __hash__(self):
+        return hash((self.ID, self._IDRaw, self.Loc, self.Residue, self.ResidueNum,
+                     self.ResidueID))
+
     @classmethod
     def loadFromPDBLine(cls, line):
         """Load an atom from one line in the PDB file."""
@@ -76,7 +138,8 @@ class Atom(object):
         # http://www.wwpdb.org/documentation/file-format-content/format33/sect9.html#ATOM
         x, y, z = [float(x) for x in line[31:54].split()]
         NewStuff.Loc = matrix.Vector3D(x, y, z)
-        NewStuff.ID = line[12:16].rstrip() # Could have one leading space
+        NewStuff._IDRaw = line[12:16].rstrip() # Could have one leading space
+        NewStuff.ID = NewStuff._IDRaw.lstrip()
         if line[20] == ' ':
             NewStuff.Residue = line[17:20]
         else:
@@ -142,7 +205,8 @@ class Molecule(object):
         return copy.deepcopy(self)
 
     def addMolecule(self, m):
-        """Add all atoms in `m` to this molecule."""
+        """Add all atoms in molecule, sequance, or iterator of atoms, `m`, to this
+        molecule."""
         for a in m:
             self.addAtom(a)
 
@@ -155,13 +219,65 @@ class Molecule(object):
         return self.Size
 
     @classmethod
-    def loadFromPDB(cls, f):
-        """Load all atoms from file object `f` as a whole molecule."""
-        NewMol = cls()
+    def loadFromXYZ(cls, f, split=False):
+        Data = []
+        FrameData = dict()
+        Mol = cls()
         for Line in f:
-            if Line.startswith("ATOM"):
-                NewMol.addAtom(Atom.loadFromPDBLine(Line))
-        return NewMol
+            Parts = Line.strip().split()
+            if len(Parts) == 1:
+                # Line count, finish last molecule
+                if FrameData:
+                    FrameData["mol"] = Mol
+                    Data.append(FrameData)
+                    FrameData = dict()
+                    Mol = cls()
+            elif len(Parts) == 3:
+                # Box size
+                x, y, z = tuple(map(float, Parts))
+                if x != y or y != z:
+                    Logger.warn("Box is not cube.")
+                FrameData["box"] = Boundary()
+                FrameData["box"].setWalls(matrix.Vector3D(-x*0.5, -y*0.5, -z*0.5),
+                                          matrix.Vector3D(x*0.5, y*0.5, z*0.5))
+            elif len(Parts) == 4:
+                At = Atom()
+                x,y,z = tuple(map(float, Parts[1:]))
+                At.Loc = matrix.Vector3D(x, y, z)
+                At.ID = Parts[0]
+                Mol.addAtom(At)
+            else:
+                raise RuntimeError("Invalid XYZ line: " + Line)
+
+        FrameData["mol"] = Mol
+        Data.append(FrameData)
+        Logger.info("Loaded {} frames from XYZ.".format(len(Data)))
+        return Data
+
+    @classmethod
+    def loadFromPDB(cls, f, split=False):
+        """Load all atoms from file object `f` as a whole molecule. If `split`
+        is True, load the PDB into a dictionary of molecules,
+        according to the last column of PDB file.
+        """
+        if not split:
+            NewMol = cls()
+            for Line in f:
+                if Line.startswith("ATOM"):
+                    NewMol.addAtom(Atom.loadFromPDBLine(Line))
+            return NewMol
+        else:
+            Mols = dict()
+            for Line in f:
+                if not Line.startswith("ATOM"):
+                    continue
+
+                Component = Line.strip().split()[-1]
+                if Component not in Mols:
+                    Mols[Component] = cls()
+                Mol = Mols[Component]
+                Mol.addAtom(Atom.loadFromPDBLine(Line))
+            return Mols
 
     def saveAsPDB(self, f):
         """Save the current molecule to file object `f` in PDB format."""
@@ -184,9 +300,12 @@ class Molecule(object):
             f.write("ATOM  {: >5d} {: <4s} {: <4s} {: >4s}{: <4s}"
                     "{:>8.3f}{:>8.3f}{:>8.3f}{:>6.2f}{:>6.2f}"
                     "      {: <4s}\n".format(
-                        i+1, a.ID, a.Residue, ResNum, ResNumOverflow,
+                        i+1, a._IDRaw, a.Residue, ResNum, ResNumOverflow,
                         a.x, a.y, a.z, a.Occupancy, a.Temp, a.ResidueID))
         f.write("END\n")
+
+    def split(self):
+        """."""
 
     def __iter__(self):
         return self._Atoms.__iter__()
